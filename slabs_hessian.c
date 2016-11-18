@@ -60,46 +60,168 @@
 
 
 /* This is the W block in the Hessian */
-
+#if 1
 static void
 slabs_hessian_block_uu (slabs_inverse_problem_params_t *inverse_params,
 			slabs_hessian_params_t *hessian_params)
 
 {
+  ymir_mesh_t *mesh = inverse_params->mesh;
   ymir_stokes_pc_t *stokes_pc = inverse_params->stokes_pc;
   ymir_pressure_elem_t *press_elem = stokes_pc->stokes_op->press_elem;
   ymir_cvec_t   *intrace = ymir_face_cvec_new (mesh, SL_TOP, 3);
   ymir_cvec_t   *intrace_mass = ymir_face_cvec_new (mesh, SL_TOP, 3);
   ymir_cvec_t   *tmp = ymir_cvec_new (mesh, 3);
-  ymir_cvec_t   *uin = hessian_params->u_inc;
+  ymir_vec_t    *up_inc = hessian_params->up_inc;
+  ymir_cvec_t   *uinc = ymir_cvec_new (mesh, 3);
   ymir_cvec_t   *uout = hessian_params->uout;
+  ymir_vec_t    *uout_inc = ymir_cvec_new (mesh, 3);
+  ymir_vec_t    *upout_inc = hessian_params->upout_inc;
+  ymir_vec_t    *tmp_surf = ymir_face_cvec_new (mesh, SL_TOP, 3);
 
   YMIR_GLOBAL_PRODUCTION ("entering hessian block uu.\n");
-  ymir_upvec_get_u (upin, uin, YMIR_READ);
-  ymir_interp_vec (uin, intrace);
+  ymir_upvec_get_u (up_inc, uinc, YMIR_READ);
+  ymir_interp_vec (uinc, intrace);
   YMIR_GLOBAL_PRODUCTION ("interpolating.\n");
-  ymir_upvec_set_u (upin, uin, YMIR_RELEASE);
+  ymir_upvec_set_u (up_inc, uinc, YMIR_RELEASE);
   YMIR_GLOBAL_PRODUCTION ("releasing.\n");
 
-  /* Note we apply a surface mass matrix (Neumann) here and not a volume
-     mass matrix */
-  /* ymir_vel_dir_separate (intrace, NULL, NULL, NULL, inverse_params->vel_dir); */
-
-  ymir_mass_apply (intrace, intrace_mass);
-  YMIR_GLOBAL_PRODUCTION ("interpolating.\n");
   ymir_interp_vec (intrace_mass, tmp);
-  /* Need to enforce Dirichlet boundary conditions on interpolate velocities */
-  /* ymir_vel_dir_separate (tmp, NULL, NULL, NULL, inverse_params->vel_dir); */
-  YMIR_GLOBAL_PRODUCTION ("interpolated vector.\n");
-  ymir_stokes_vec_set_velocity (tmp, upout, press_elem);
-  YMIR_GLOBAL_PRODUCTION ("setting vector.\n");
+  ymir_mass_apply (tmp, tmp_surf);
+  ymir_interp_vec (tmp_surf, uout_inc);
+  ymir_stokes_vec_set_velocity (uout_inc, upout_inc, press_elem);
+
+  /* YMIR_GLOBAL_PRODUCTION ("setting vector.\n"); */
   
  
-  ymir_vec_destroy (uout);
-  ymir_vec_destroy (uin);
+  ymir_vec_destroy (uinc);
   ymir_vec_destroy (intrace);
   ymir_vec_destroy (intrace_mass);
   ymir_vec_destroy (tmp);
+  ymir_vec_destroy (tmp_surf);
+  ymir_vec_destroy (uout_inc);
+}
+#endif
+
+void
+slabs_hessian_block_uu_newton (slabs_inverse_problem_params_t *inverse_params,
+			       slabs_hessian_params_t *hessian_params)
+{
+  ymir_mesh_t          *mesh = inverse_params->mesh;
+  ymir_pressure_elem_t *press_elem = inverse_params->press_elem;
+  mangll_t             *mangll = mesh->ma;
+  ymir_vec_t           *viscosity = inverse_params->viscosity;
+  ymir_vec_t           *out = hessian_params->hessian_block_uu_newton_inc;
+  ymir_vec_t           *viscosity_deriv_IIe = inverse_params->viscosity_deriv_IIe;
+  ymir_vec_t           *viscosity_second_deriv_IIe = inverse_params->viscosity_second_deriv_IIe;
+  ymir_vec_t           *eueu_inc = hessian_params->eueu_inc;
+  ymir_vec_t           *euev = hessian_params->euev;
+  ymir_vec_t           *euinc_ev = hessian_params->euinc_ev;
+  ymir_vec_t           *ones = inverse_params->ones;
+  ymir_vec_t           *out1 = ymir_vec_template (viscosity);
+  ymir_vec_t           *out2 = ymir_vec_template (viscosity); 
+  ymir_vec_t           *out3 = ymir_vec_template (viscosity); 
+  ymir_vec_t           *u = hessian_params->uout;
+  ymir_vec_t           *u_inc = hessian_params->u_inc;
+  ymir_vec_t           *v = hessian_params->v;
+  ymir_vec_t           *u_apply1 = ymir_cvec_new (mesh, 3);
+  ymir_vec_t           *u_apply2 = ymir_cvec_new (mesh, 3);
+  ymir_vec_t           *u_apply3 = ymir_cvec_new (mesh, 3);
+  ymir_vel_dir_t       *vel_dir = inverse_params->vel_dir;
+  char                path[BUFSIZ];
+  
+  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const unsigned int  N = ymir_n (mangll->N);
+  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  int nodeid;
+  sc_dmatrix_t       *viscosity_el_mat;
+  sc_dmatrix_t       *out1_el_mat, *out2_el_mat, *out3_el_mat, *euev_el_mat;
+  sc_dmatrix_t       *eueu_inc_el_mat, *viscosity_deriv_IIe_el_mat, *viscosity_second_deriv_IIe_el_mat;
+  sc_dmatrix_t       *euinc_ev_el_mat;
+  mangll_locidx_t     elid;
+
+
+  /* create work variables */
+  viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  viscosity_deriv_IIe_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  viscosity_second_deriv_IIe_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  eueu_inc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  euev_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  euinc_ev_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  out1_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  out2_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  out3_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+
+  
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_dvec_get_elem (viscosity, viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (eueu_inc, eueu_inc_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (euev, euev_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (euinc_ev, euinc_ev_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (viscosity_deriv_IIe, viscosity_deriv_IIe_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (viscosity_second_deriv_IIe, viscosity_second_deriv_IIe_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (out1, out1_el_mat, YMIR_STRIDE_NODE, elid, YMIR_WRITE);
+    ymir_dvec_get_elem (out2, out2_el_mat, YMIR_STRIDE_NODE, elid, YMIR_WRITE);
+    ymir_dvec_get_elem (out3, out3_el_mat, YMIR_STRIDE_NODE, elid, YMIR_WRITE);
+
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
+      double *_sc_restrict visc = viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict viscosity_IIe_deriv = viscosity_deriv_IIe_el_mat->e[0] + nodeid;
+      double *_sc_restrict eueuinc = eueu_inc_el_mat->e[0] + nodeid;
+      double *_sc_restrict viscosity_IIe_second_deriv = viscosity_second_deriv_IIe_el_mat->e[0] + nodeid;
+      double *_sc_restrict eu_ev = euev_el_mat->e[0] + nodeid;
+      double *_sc_restrict euev_inc = euinc_ev_el_mat->e[0] + nodeid;
+      double *_sc_restrict output1 = out1_el_mat->e[0] +  nodeid;
+      double *_sc_restrict output2 = out2_el_mat->e[0] +  nodeid;
+      double *_sc_restrict output3 = out3_el_mat->e[0] +  nodeid;
+ 
+      output1[0] = viscosity_IIe_second_deriv[0] * eueuinc[0] * eu_ev[0] + viscosity_IIe_deriv[0] * euev_inc[0];
+      output2[0] = viscosity_IIe_deriv[0] * eu_ev[0];
+      output3[0] = viscosity_IIe_deriv[0] * eueuinc[0];
+      
+      
+                                                                                                                   
+    }
+     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
+     ymir_dvec_set_elem (out1, out1_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+     ymir_dvec_set_elem (out2, out2_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+     ymir_dvec_set_elem (out3, out3_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+
+  }
+
+  ymir_stress_op_t *stress_op_mod1 = ymir_stress_op_new (out1, vel_dir, NULL, u, NULL);
+  ymir_stress_op_t *stress_op_mod2 = ymir_stress_op_new (out2, vel_dir, NULL, u_inc, NULL);
+  ymir_stress_op_t *stress_op_mod3 = ymir_stress_op_new (out3, vel_dir, NULL, v, NULL);
+
+  ymir_stress_op_apply (u, u_apply1, stress_op_mod1);
+  ymir_stress_op_apply (u_inc, u_apply2, stress_op_mod2);
+  ymir_stress_op_apply (v, u_apply3, stress_op_mod3);
+  ymir_vec_add (1.0, u_apply1, u_apply2);
+  ymir_vec_add (1.0, u_apply2, u_apply3);
+
+  ymir_stokes_vec_set_velocity (u_apply3,  out, press_elem);
+  /* ymir_vec_copy (rhs_inc, vq_out); */
+  ymir_stress_op_destroy (stress_op_mod1);
+  ymir_stress_op_destroy (stress_op_mod2);
+  ymir_stress_op_destroy (stress_op_mod3);
+
+  
+
+  sc_dmatrix_destroy (viscosity_el_mat);
+  sc_dmatrix_destroy (viscosity_deriv_IIe_el_mat);
+  sc_dmatrix_destroy (viscosity_second_deriv_IIe_el_mat);
+  sc_dmatrix_destroy (eueu_inc_el_mat);
+  sc_dmatrix_destroy (out1_el_mat);
+  sc_dmatrix_destroy (out2_el_mat);
+  sc_dmatrix_destroy (out3_el_mat);
+ 
 }
 
 
@@ -126,7 +248,7 @@ slabs_hessian_block_mm_upper_mantle (slabs_inverse_problem_params_t *inverse_par
   ymir_mesh_t *mesh = inverse_params->mesh;
   ymir_vec_t  *euev = inverse_params->euev;
   ymir_vec_t  *upper_mantle_marker = inverse_params->upper_mantle_marker;
-  ymir_vec_t  *grad_viscosity_upper_mantle = inverse_params->grad_viscosity_upper_mantle;
+  ymir_vec_t  *grad_viscosity_upper_mantle = inverse_params->grad_viscosity_UM_prefactor;
   ymir_vec_t  *out = ymir_vec_clone (euev);
   
   ymir_vec_multiply_in1 (grad_viscosity_upper_mantle, out);
@@ -141,7 +263,7 @@ slabs_hessian_block_mm_transition_zone (slabs_inverse_problem_params_t *inverse_
   ymir_mesh_t *mesh = inverse_params->mesh;
   ymir_vec_t  *euev = inverse_params->euev;
   ymir_vec_t  *transition_zone_marker = inverse_params->transition_zone_marker;
-  ymir_vec_t  *grad_viscosity_transition_zone = inverse_params->grad_viscosity_transition_zone;
+  ymir_vec_t  *grad_viscosity_transition_zone = inverse_params->grad_viscosity_TZ_prefactor;
   ymir_vec_t  *out = ymir_vec_clone (euev);
   
   ymir_vec_multiply_in1 (grad_viscosity_transition_zone, out);
@@ -200,11 +322,7 @@ slabs_hessian_block_mm_strain_exp_prior (ymir_vec_t *strain_rate_exp_inc,
   
   ymir_vec_destroy (out);
 
-
-
 }
-
-
 
 
 void
@@ -225,8 +343,6 @@ slabs_hessian_block_mm_weakfactor_prior (ymir_vec_t *weakfactor_inc,
   ymir_vec_add (1.0, out,weakfactor_inc);
   
   ymir_vec_destroy (out);
-
-
 
 }
 
@@ -411,7 +527,7 @@ slabs_hessian_block_vm_yield_upper_mantle_prefactor (ymir_vec_t *vq_out,
   ymir_cvec_t *u = stokes_pc->stokes_op->stress_op->usol;
   ymir_stokes_op_t *stokes_op = stokes_pc->stokes_op;
   ymir_vel_dir_t *vel_dir = inverse_params->vel_dir;
-  ymir_vec_t *grad_viscosity_upper_mantle = inverse_params->grad_viscosity_upper_mantle;
+  ymir_vec_t *grad_viscosity_upper_mantle = inverse_params->grad_viscosity_UM_prefactor;
   ymir_vec_t *rhs_inc = ymir_stokes_vec_new (mesh, press_elem);
   ymir_cvec_t *u_apply = ymir_vec_template (u);
   
@@ -449,7 +565,7 @@ slabs_hessian_block_vm_yield_transition_zone_prefactor (ymir_vec_t *vq_out,
   ymir_cvec_t *u = stokes_pc->stokes_op->stress_op->usol;
   ymir_stokes_op_t *stokes_op = stokes_pc->stokes_op;
   ymir_vel_dir_t *vel_dir = inverse_params->vel_dir;
-  ymir_vec_t *grad_viscosity_transition_zone = inverse_params->grad_viscosity_transition_zone;
+  ymir_vec_t *grad_viscosity_transition_zone = inverse_params->grad_viscosity_TZ_prefactor;
   ymir_vec_t *rhs_inc = ymir_stokes_vec_new (mesh, press_elem);
   ymir_cvec_t *u_apply = ymir_vec_template (u);
   
@@ -655,7 +771,7 @@ slabs_hessian_block_mv_upper_mantle_prefactor (slabs_hessian_params_t *hessian_p
   ymir_dvec_t *eu = inverse_params->eu;
   ymir_dvec_t *ev_inc = hessian_params->ev_inc;
   ymir_dvec_t *euev_inc = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
-  ymir_vec_t  *grad_viscosity_upper_mantle = inverse_params->grad_viscosity_upper_mantle;
+  ymir_vec_t  *grad_viscosity_upper_mantle = inverse_params->grad_viscosity_UM_prefactor;
   ymir_cvec_t *u = inverse_params->u;
   ymir_dvec_t *ones = inverse_params->ones;
   ymir_cvec_t *v_inc = hessian_params->v_inc;
@@ -683,7 +799,7 @@ slabs_hessian_block_mv_transition_zone_prefactor (slabs_hessian_params_t *hessia
   ymir_dvec_t *eu = inverse_params->eu;
   ymir_dvec_t *ev_inc = hessian_params->ev_inc;
   ymir_dvec_t *euev_inc = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
-  ymir_vec_t  *grad_viscosity_transition_zone = inverse_params->grad_viscosity_transition_zone;
+  ymir_vec_t  *grad_viscosity_transition_zone = inverse_params->grad_viscosity_TZ_prefactor;
   ymir_cvec_t *u = inverse_params->u;
   ymir_dvec_t *ones = inverse_params->ones;
   ymir_cvec_t *v_inc = hessian_params->v_inc;

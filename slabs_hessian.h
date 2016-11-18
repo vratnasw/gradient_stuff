@@ -69,6 +69,8 @@ typedef struct slabs_hessian_params
    */
   ymir_vec_t *up_inc;
   ymir_vec_t *vq_inc;
+  ymir_vec_t *upout_inc;
+  ymir_vec_t *v;
   ymir_vec_t *u_inc;
   ymir_vec_t *v_inc;
   ymir_vec_t *eu_inc;
@@ -81,6 +83,8 @@ typedef struct slabs_hessian_params
   ymir_vec_t *transition_zone_prefactor_inc;
   ymir_vec_t *activation_energy_inc;
   ymir_vec_t *eueu_inc;
+  ymir_vec_t *euev;
+  ymir_vec_t *euinc_ev;
   ymir_vec_t *weakfactor_mm_average_viscosity_inc;
   ymir_vec_t *strain_rate_exponent_mm_average_viscosity_inc;
   ymir_vec_t *yield_stress_mm_average_viscosity_inc;
@@ -88,6 +92,7 @@ typedef struct slabs_hessian_params
   ymir_vec_t *transition_zone_prefactor_mm_average_viscosity_inc;
   ymir_vec_t *activation_energy_mm_average_viscosity_inc;
   ymir_vec_t *hessian_block_uu_average_viscosity_inc;
+  ymir_vec_t *hessian_block_uu_newton_inc;
   double     *hessian;
 
 }

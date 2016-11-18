@@ -1,4 +1,4 @@
- 
+  
  /*
   This file is part of the ymir Library.
   ymir is a C library for modeling ice sheets
@@ -90,19 +90,18 @@ slabs_inverse_problem_new (ymir_mesh_t *mesh,
   inverse_problem_grad->press_elem = press_elem;
  
   /* assign pointers to misfit and adjoint velocitiy and pressure */
-  inverse_problem_grad->adjoint_vq = ymir_vec_template (state->vel_press_vec);
+  inverse_problem_grad->adjoint_vq = NULL;
   /* inverse_problem_grad->surface_velocity_misfit = NULL; */
   /* inverse_problem_grad->surface_normal_stress_misfit = NULL; */
   /* inverse_problem_grad->surface_IIe_misfit = NULL; */
   
   /* assign pointers to gradient vectors */
-  inverse_problem_grad->grad_weak_factor = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
-  inverse_problem_grad->grad_strain_exp = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
-  inverse_problem_grad->grad_yield_stress = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
-  inverse_problem_grad->grad_TZ_prefactor = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
-  inverse_problem_grad->grad_UM_prefactor = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
-  inverse_problem_grad->grad_activation_energy = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
- 
+  inverse_problem_grad->grad_weak_factor = NULL; 
+  inverse_problem_grad->grad_strain_exp = NULL;
+  inverse_problem_grad->grad_yield_stress = NULL;
+  inverse_problem_grad->grad_TZ_prefactor = NULL;
+  inverse_problem_grad->grad_UM_prefactor = NULL;
+  inverse_problem_grad->grad_activation_energy = NULL;
   /* assign pointers to incremental update directions */
   inverse_problem_grad->inc_update_strain_rate_exp_vec = NULL;
   inverse_problem_grad->inc_update_yield_stress_vec = NULL;
@@ -110,6 +109,11 @@ slabs_inverse_problem_new (ymir_mesh_t *mesh,
   inverse_problem_grad->inc_update_TZ_prefactor_vec = NULL;
   inverse_problem_grad->inc_update_activation_energy_vec = NULL;
   inverse_problem_grad->inc_update_weakzone_prefactor_vec = NULL;
+
+  inverse_problem_grad->sam_weakzone_stencil = NULL;
+  inverse_problem_grad->izu_weakzone_stencil = NULL;
+  inverse_problem_grad->ryu_weakzone_stencil = NULL;
+
 
 
   /* assign pointers to rheological structures */
@@ -137,13 +141,117 @@ slabs_inverse_problem_new (ymir_mesh_t *mesh,
 
 }
 
-void
-slabs_initialize_gradient_params (slabs_inverse_problem_params_t *inverse_params,
-				  slabs_nl_stokes_problem_t *nl_stokes,
-				  slabs_nl_solver_options_t *solver_options,
-				  slabs_physics_options_t *physics_options)
+void 
+slabs_clear_inverse_problem_empty (slabs_inverse_problem_params_t *inverse_params)
 {
-  const char *this_fn_name = "Initializing adjoing solve information.\n";
+  YMIR_FREE (inverse_params);
+
+}
+
+void
+slabs_initialize_weakzone_stencils (slabs_inverse_problem_params_t *inverse_params)
+{
+  ymir_mesh_t *mesh = inverse_params->mesh;
+
+  const char    *this_fn_name = "creating new inverse problem";     
+  inverse_params->sam_weakzone_stencil = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->izu_weakzone_stencil = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->ryu_weakzone_stencil = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  
+}
+
+
+void
+slabs_destroy_weakzone_stencils (slabs_inverse_problem_params_t *inverse_params)
+{
+  ymir_vec_destroy (inverse_params->sam_weakzone_stencil);
+  ymir_vec_destroy (inverse_params->izu_weakzone_stencil);
+  ymir_vec_destroy (inverse_params->ryu_weakzone_stencil);
+}
+
+
+void
+slabs_initialize_gradients_velocity_data (slabs_inverse_problem_params_t *inverse_params)
+{
+  ymir_mesh_t *mesh = inverse_params->mesh;
+
+  const char    *this_fn_name = "creating new inverse problem";     
+  /* assign pointers to gradient vectors */
+  inverse_params->grad_weak_factor = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE); 
+  inverse_params->grad_strain_exp = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->grad_yield_stress = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->grad_TZ_prefactor = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->grad_UM_prefactor = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->grad_activation_energy = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+ 
+  
+}
+
+
+
+
+void
+slabs_destroy_velocity_gradients (slabs_inverse_problem_params_t *inverse_params)
+{
+  const char    *this_fn_name = "destroying gradient vectors";     
+
+  ymir_vec_destroy (inverse_params->grad_weak_factor);
+  ymir_vec_destroy (inverse_params->grad_strain_exp);
+  ymir_vec_destroy (inverse_params->grad_yield_stress);
+  ymir_vec_destroy (inverse_params->grad_TZ_prefactor);
+  ymir_vec_destroy (inverse_params->grad_UM_prefactor);
+  ymir_vec_destroy (inverse_params->grad_activation_energy);
+
+  YMIR_GLOBAL_INFOF ("Finished %s\n", this_fn_name);
+
+}
+
+
+void
+slabs_initialize_gradients_viscosity_data (slabs_inverse_problem_params_t *inverse_params)
+{
+  ymir_mesh_t *mesh = inverse_params->mesh;
+
+  const char    *this_fn_name = "creating new inverse problem";     
+  /* assign pointers to gradient vectors */
+  inverse_params->grad_viscosity_weakfactor = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE); 
+  inverse_params->grad_viscosity_strain_rate_exponent = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->grad_viscosity_yield_stress = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->grad_viscosity_TZ_prefactor = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->grad_viscosity_UM_prefactor = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  inverse_params->grad_viscosity_activation_energy = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+ 
+  
+}
+
+
+void
+slabs_destroy_gradients_viscosity_data (slabs_inverse_problem_params_t *inverse_params)
+{
+  const char    *this_fn_name = "destroying gradient vectors";     
+
+  ymir_vec_destroy (inverse_params->grad_viscosity_weakfactor);
+  ymir_vec_destroy (inverse_params->grad_viscosity_strain_rate_exponent);
+  ymir_vec_destroy (inverse_params->grad_viscosity_yield_stress);
+  ymir_vec_destroy (inverse_params->grad_viscosity_TZ_prefactor);
+  ymir_vec_destroy (inverse_params->grad_viscosity_UM_prefactor);
+  ymir_vec_destroy (inverse_params->grad_viscosity_activation_energy);
+
+  YMIR_GLOBAL_INFOF ("Finished %s\n", this_fn_name);
+
+}
+
+
+
+
+
+void
+slabs_initialize_inverse_params (slabs_inverse_problem_params_t *inverse_params,
+				      slabs_nl_stokes_problem_t *nl_stokes,
+				      slabs_nl_solver_options_t *solver_options,
+				      slabs_physics_options_t *physics_options)
+{
+  const char *this_fn_name = "Initializing inverse params data structures.\n";
 
   /* Initialize gradient structures */
   
@@ -165,6 +273,52 @@ slabs_initialize_gradient_params (slabs_inverse_problem_params_t *inverse_params
 }
 
 
+/**
+ * Initializes the weak zone.
+ */
+void
+slabs_setup_mesh_data_weakzone (slabs_inverse_problem_params_t *inverse_params,
+				slabs_stokes_state_t *state,
+				slabs_physics_options_t *physics_options,
+				const char *vtk_filepath)
+{
+  ymir_mesh_t *mesh = inverse_params->mesh;
+  ymir_vec_t *sam_weak =  inverse_params->sam_weakzone_stencil;
+  ymir_vec_t *izu_weak =  inverse_params->izu_weakzone_stencil;
+  ymir_vec_t *ryu_weak =  inverse_params->ryu_weakzone_stencil;
+  MPI_Comm            mpicomm = mesh->ma->mpicomm;
+  char                path[BUFSIZ];
+    
+
+
+  /* initialization of weak zone computation */
+  slabs_physics_init_sam_data_weakzone (mpicomm, physics_options);
+  slabs_physics_init_izu_data_weakzone (mpicomm, physics_options);
+  slabs_physics_init_ryu_data_weakzone (mpicomm, physics_options);
+
+#if 1
+  /* fill Stokes state with weak zone factor values */
+  slabs_physics_compute_sam_weakzone (sam_weak, physics_options);
+  slabs_physics_compute_izu_weakzone (izu_weak, physics_options);
+  slabs_physics_compute_ryu_weakzone (ryu_weak, physics_options);
+
+#endif
+  /* Write out stencil to vtk file */
+  snprintf (path, BUFSIZ, "%s_sam_weak", vtk_filepath);
+  ymir_vtk_write (mesh, path,
+		  sam_weak, "sam weakzone",
+		  izu_weak, "izu weakzone",
+		  ryu_weak, "ryu weakzone",
+		  NULL);
+  
+  slabs_physics_data_clear_weakzone (physics_options);
+
+  
+
+}
+
+
+
 
 void
 slabs_inverse_problem_clear (slabs_inverse_problem_params_t *inverse_problem_grad)
@@ -184,60 +338,6 @@ slabs_inverse_problem_clear (slabs_inverse_problem_params_t *inverse_problem_gra
 
 }
 
-sc_dmatrix_t *
-slabs_inverse_params_init_velocity_data (slabs_inverse_problem_params_t *inverse_params,
-					 mangll_cnodes_t *cnodes)
-{
-  const mangll_locidx_t  n_nodes = cnodes->Ncn;
-  const char    *this_fn_name = "creating velocity data structure";
-
-  /* check state */
-  YMIR_ASSERT (inverse_params->velocity_data == NULL);
-
-  /* create temperature field */
-  inverse_params->velocity_data = sc_dmatrix_new (n_nodes, 1);
-
-  YMIR_GLOBAL_INFOF ("Done %s.\n", this_fn_name);
-  /* return temperature field */
-  return inverse_params->velocity_data;
-}
-
-ymir_vec_t *
-slabs_inverse_params_init_velocity_data_vec (slabs_inverse_problem_params_t *inverse_params,
-					     ymir_mesh_t *mesh)
-{
-  const char    *this_fn_name = "creating velocity data vector";
-
-  /* check state */
-  YMIR_ASSERT (inverse_params->velocity_data != NULL);
-
-  /* create vector view for temperature */
-  inverse_params->velocity_data_vec = ymir_cvec_new_data (mesh, 1, inverse_params->velocity_data);
-
-  YMIR_GLOBAL_INFOF ("Done %s.\n", this_fn_name);
-
-  /* return temperature vector */
-  return inverse_params->velocity_data_vec;
-
-}
-
-
-void
-slabs_inverse_destroy_data (slabs_inverse_problem_params_t *inverse_params)
-{
-  const char    *this_fn_name = "destroying velocity data";
-  
-  if (inverse_params->velocity_data != NULL) {
-    sc_dmatrix_destroy (inverse_params->velocity_data);
-    inverse_params->velocity_data = NULL;
-  }
-  if (inverse_params->velocity_data_vec != NULL) {
-    ymir_vec_destroy (inverse_params->velocity_data_vec);
-    inverse_params->velocity_data_vec = NULL;
-  }
-  YMIR_GLOBAL_INFOF ("Done %s\n", this_fn_name);
-
-}
 
 void
 slabs_inverse_problem_destroy (slabs_inverse_problem_params_t *inverse_params)
@@ -251,153 +351,493 @@ slabs_inverse_problem_destroy (slabs_inverse_problem_params_t *inverse_params)
 }
 
 
-
-
-static void 
-slabs_initial_guess_weakfactors (slabs_physics_options_t *physics_options)
-
+void
+slabs_gradient_viscosity_param_weakfactor (slabs_inverse_problem_params_t *inverse_params,
+					   const char *vtk_filepath)
 {
-  const char    *this_fn_name = "changing parameters to initial guess";
-  double        weakzone_plate_sam;
-  double        weakzone_plate_izu;
-  double        weakzone_plate_ryu;
-  double        weakzone_guess = 1.0e-5;
-
-
-  YMIR_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  physics_options->weakzone_import_weak_factor_sam = weakzone_guess;
-  physics_options->weakzone_import_weak_factor_izu = weakzone_guess;
-  physics_options->weakzone_import_weak_factor_ryu = weakzone_guess;
-
-  YMIR_GLOBAL_PRODUCTIONF ("Guessed weak zone is: %g.\n", physics_options->weakzone_import_weak_factor_sam);
-
-}
-
-static void 
-slabs_update_weakfactors_x_section (double sam_weakfactor, double izu_weakfactor,
-				    double ryu_weakfactor,
-				    slabs_physics_options_t *physics_options)
-
-{
-  const char    *this_fn_name = "Updating weakfactor";
-
-  YMIR_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* redefine weakzone values from initial guesses */
-  physics_options->weakzone_import_weak_factor_sam = sam_weakfactor;
-  physics_options->weakzone_import_weak_factor_izu = izu_weakfactor;
-  physics_options->weakzone_import_weak_factor_ryu = ryu_weakfactor;
-
-  YMIR_GLOBAL_PRODUCTIONF ("Guessed weak zone is: %g.\n", physics_options->weakzone_import_weak_factor_sam);
-
-}
-
-
-static void
-slabs_update_strain_exp (double strain_rate_exp_update,
-			 slabs_physics_options_t *physics_options)
-				  
-{
-  const char *this_fn_name = "Updating strain rate exponent";
-
-  YMIR_GLOBAL_PRODUCTIONF (" Into %s\n", this_fn_name);
-  /* reset value */
-  physics_options->viscosity_stress_exponent = strain_rate_exp_update;
-  YMIR_GLOBAL_PRODUCTIONF (" New strain rate exponent is: %g.\n", physics_options->viscosity_stress_exponent);
-
-
-}
-
-
-static void 
-slabs_update_yield_stress (double yield_stress_update,
-			   slabs_physics_options_t *physics_options)
-
-{
-  double yield_stress_old = physics_options->viscosity_stress_yield;
-  double yield_stress_new = yield_stress_old;
-  const char *this_fn_name = "Updating yield stress";
+  ymir_vec_t           *viscosity = inverse_params->viscosity;
+  ymir_vec_t           *grad_viscosity_weakfactor = inverse_params->grad_viscosity_weakfactor;
+  ymir_vec_t           *weakfactor_stencil = inverse_params->weakzone_marker;
+  ymir_mesh_t          *mesh = viscosity->mesh;
+  mangll_t             *mangll = mesh->ma;
+  char                path[BUFSIZ];
   
-  YMIR_GLOBAL_PRODUCTIONF ("Into %s\n.", this_fn_name);
-  /* reset value for yield stress */
-  physics_options->viscosity_stress_yield = yield_stress_update;
+  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const unsigned int  N = ymir_n (mangll->N);
+  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  int nodeid;
+  sc_dmatrix_t       *viscosity_el_mat, *grad_viscosity_el_mat;
+  sc_dmatrix_t       *weakfactor_stencil_el_mat;
+  mangll_locidx_t     elid;
 
+
+  /* create work variables */
+  viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  weakfactor_stencil_el_mat = sc_dmatrix_new (n_nodes_per_el, 1); 
+  grad_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  
+      
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_dvec_get_elem (viscosity, viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (weakfactor_stencil, weakfactor_stencil_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (grad_viscosity_weakfactor, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
+      double *_sc_restrict visc = viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict viscosity_deriv = grad_viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict weakfactor_distrib = weakfactor_stencil_el_mat->e[0] +  nodeid;
+ 
+      viscosity_deriv[0] = weakfactor_distrib[0] * visc[0];
+      
+    }
+     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
+     ymir_dvec_set_elem (grad_viscosity_weakfactor, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+  }
+
+  snprintf (path, BUFSIZ, "%s_log_viscosity", vtk_filepath);
+  ymir_vtk_write (mesh, path,
+		  grad_viscosity_weakfactor, "gradient of viscosity w.r.t weakfactor",
+		  NULL);
+
+  sc_dmatrix_destroy (viscosity_el_mat);
+  sc_dmatrix_destroy (weakfactor_stencil_el_mat);
+  sc_dmatrix_destroy (grad_viscosity_el_mat);
 }
 
 void
-slabs_inverse_params_load_velocity_data (slabs_inverse_problem_params_t *inverse_params, ymir_mesh_t *mesh,
-					 const char *filepath_filename_import_txt,
-					 const char *filepath_filename_import_bin)
+slabs_gradient_viscosity_param_strain_rate_exponent (slabs_inverse_problem_params_t *inverse_params,
+						     const char *vtk_filepath)
 {
-  mangll_t           *mangll = mesh->ma;
-  mangll_cnodes_t    *cnodes = mesh->cnodes;
-  const char *this_fn_name = "loading and creating velocity data.\n";
+  ymir_vec_t           *viscosity = inverse_params->viscosity;
+  ymir_vec_t           *grad_viscosity_strain_rate_exponent = inverse_params->grad_viscosity_strain_rate_exponent;
+  ymir_vec_t           *upper_mantle_marker = inverse_params->upper_mantle_marker;
+  ymir_mesh_t          *mesh = viscosity->mesh;
+  mangll_t             *mangll = mesh->ma;
+  char                path[BUFSIZ];
+  
+  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const unsigned int  N = ymir_n (mangll->N);
+  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  int nodeid;
+  sc_dmatrix_t       *viscosity_el_mat, *grad_viscosity_el_mat;
+  sc_dmatrix_t       *upper_mantle_stencil_el_mat;
+  mangll_locidx_t     elid;
 
-  /* check input */
-  YMIR_ASSERT (inverse_params->velocity_data == NULL);
 
-  /* initialize temperature in Stokes state */
-  slabs_inverse_params_init_velocity_data (inverse_params, cnodes);
+  /* create work variables */
+  viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  upper_mantle_stencil_el_mat = sc_dmatrix_new (n_nodes_per_el, 1); 
+  grad_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  
+ 
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_dvec_get_elem (viscosity, viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (upper_mantle_marker, upper_mantle_stencil_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (grad_viscosity_strain_rate_exponent, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
 
-  /* read temperature from file into Stokes state */
-  slabs_io_read_temperature (inverse_params->velocity_data, mangll, mesh->cnodes,
-                             filepath_filename_import_txt,
-                             filepath_filename_import_bin);
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
+      double *_sc_restrict visc = viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict viscosity_deriv = grad_viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict strain_exp_distrib = upper_mantle_stencil_el_mat->e[0] +  nodeid;
+ 
+      viscosity_deriv[0] = strain_exp_distrib[0] * visc[0];
+      
+    }
+     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
+     ymir_dvec_set_elem (grad_viscosity_strain_rate_exponent, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+  }
+
+  snprintf (path, BUFSIZ, "%s_log_viscosity", vtk_filepath);
+  ymir_vtk_write (mesh, path,
+		  grad_viscosity_strain_rate_exponent, "gradient of viscosity w.r.t strain_exp",
+		  NULL);
+
+  sc_dmatrix_destroy (viscosity_el_mat);
+  sc_dmatrix_destroy (upper_mantle_stencil_el_mat);
+  sc_dmatrix_destroy (grad_viscosity_el_mat);
+
+}
 
 
-  /* initialize temperature vector in Stokes state */
-  slabs_inverse_params_init_velocity_data_vec (inverse_params, mesh);
+void
+slabs_gradient_viscosity_param_upper_mantle (slabs_inverse_problem_params_t *inverse_params,
+					     const char *vtk_filepath)
+{
+  ymir_vec_t           *viscosity = inverse_params->viscosity;
+  ymir_vec_t           *grad_viscosity_upper_mantle = inverse_params->grad_viscosity_UM_prefactor;
+  ymir_vec_t           *upper_mantle_marker = inverse_params->upper_mantle_marker;
+  ymir_mesh_t          *mesh = viscosity->mesh;
+  mangll_t             *mangll = mesh->ma;
+  char                path[BUFSIZ];
+  
+  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const unsigned int  N = ymir_n (mangll->N);
+  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  int nodeid;
+  sc_dmatrix_t       *viscosity_el_mat, *grad_viscosity_el_mat;
+  sc_dmatrix_t       *upper_mantle_stencil_el_mat;
+  double             *x, *y, *z, *tmp_el;
+  mangll_locidx_t     elid;
+
+
+  /* create work variables */
+  viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  upper_mantle_stencil_el_mat = sc_dmatrix_new (n_nodes_per_el, 1); 
+  grad_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  
+ 
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_dvec_get_elem (viscosity, viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (upper_mantle_marker, upper_mantle_stencil_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (grad_viscosity_upper_mantle, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
+      double *_sc_restrict visc = viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict viscosity_deriv = grad_viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict upper_mantle = upper_mantle_stencil_el_mat->e[0] +  nodeid;
+ 
+      viscosity_deriv[0] = upper_mantle[0] * visc[0];      
+    }
+     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
+     ymir_dvec_set_elem (grad_viscosity_upper_mantle, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+  }
+
+  snprintf (path, BUFSIZ, "%s_log_viscosity", vtk_filepath);
+  ymir_vtk_write (mesh, path,
+		  grad_viscosity_upper_mantle, "gradient of viscosity w.r.t upper_mantle",
+		  NULL);
+
+
+  sc_dmatrix_destroy (viscosity_el_mat);
+  sc_dmatrix_destroy (upper_mantle_stencil_el_mat);
+  sc_dmatrix_destroy (grad_viscosity_el_mat);
+}
+
+
+void
+slabs_gradient_viscosity_param_transition_zone (slabs_inverse_problem_params_t *inverse_params,
+						const char *vtk_filepath)
+{
+  ymir_vec_t           *viscosity = inverse_params->viscosity;
+  ymir_vec_t           *grad_viscosity_transition_zone = inverse_params->grad_viscosity_TZ_prefactor;
+  ymir_vec_t           *transition_zone_marker = inverse_params->transition_zone_marker;
+  ymir_mesh_t          *mesh = viscosity->mesh;
+  mangll_t             *mangll = mesh->ma;
+  char                path[BUFSIZ];
+  
+  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const unsigned int  N = ymir_n (mangll->N);
+  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  int nodeid;
+  sc_dmatrix_t       *viscosity_el_mat, *grad_viscosity_el_mat;
+  sc_dmatrix_t       *transition_zone_stencil_el_mat;
+  mangll_locidx_t     elid;
+
+
+  /* create work variables */
+  viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  transition_zone_stencil_el_mat = sc_dmatrix_new (n_nodes_per_el, 1); 
+  grad_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  
+ 
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_dvec_get_elem (viscosity, viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (transition_zone_marker, transition_zone_stencil_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (grad_viscosity_transition_zone, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
+      double *_sc_restrict visc = viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict viscosity_deriv = grad_viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict transition_zone = transition_zone_stencil_el_mat->e[0] +  nodeid;
+ 
+      viscosity_deriv[0] = transition_zone[0] * visc[0];
+      
+    }
+     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
+     ymir_dvec_set_elem (grad_viscosity_transition_zone, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+  }
+
+  snprintf (path, BUFSIZ, "%s_log_viscosity", vtk_filepath);
+  ymir_vtk_write (mesh, path,
+		  grad_viscosity_transition_zone, "gradient of viscosity w.r.t transition_zone",
+		  NULL);
+
+  sc_dmatrix_destroy (viscosity_el_mat);
+  sc_dmatrix_destroy (transition_zone_stencil_el_mat);
+  sc_dmatrix_destroy (grad_viscosity_el_mat);
+
+}
+
+
+void
+slabs_gradient_viscosity_param_yield_stress (slabs_inverse_problem_params_t *inverse_params,
+					     const char *vtk_filepath)
+{
+  ymir_vec_t           *viscosity = inverse_params->viscosity;
+  ymir_vec_t           *grad_viscosity_yield_stress = inverse_params->grad_yield_stress;
+  ymir_vec_t           *yielding_marker = inverse_params->yielding_marker;
+  ymir_mesh_t          *mesh = viscosity->mesh;
+  mangll_t             *mangll = mesh->ma;
+  char                path[BUFSIZ];
+  
+  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const unsigned int  N = ymir_n (mangll->N);
+  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  int nodeid;
+  sc_dmatrix_t       *viscosity_el_mat, *grad_viscosity_el_mat;
+  sc_dmatrix_t       *yielding_el_mat;
+  mangll_locidx_t     elid;
+
+  
+  /* create work variables */
+  viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  yielding_el_mat = sc_dmatrix_new (n_nodes_per_el, 1); 
+  grad_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_dvec_get_elem (viscosity, viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (yielding_marker, yielding_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (grad_viscosity_yield_stress, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
+      double *_sc_restrict visc = viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict viscosity_deriv = grad_viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict yield = yielding_el_mat->e[0] +  nodeid;
+ 
+      viscosity_deriv[0] = yield[0] * visc[0];
+      
+    }
+     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
+     ymir_dvec_set_elem (grad_viscosity_yield_stress, grad_viscosity_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+
+  }
+
+  snprintf (path, BUFSIZ, "%s_log_viscosity", vtk_filepath);
+  ymir_vtk_write (mesh, path,
+		  grad_viscosity_yield_stress, "gradient of viscosity w.r.t yield stress",
+		  NULL);
+
+
+
+  sc_dmatrix_destroy (viscosity_el_mat);
+  sc_dmatrix_destroy (yielding_el_mat);
+  sc_dmatrix_destroy (grad_viscosity_el_mat);
+
+}
+
+void 
+slabs_compute_gradient_strain_rate_exponent_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+							       const char *vtk_filepath)
+{
+  const char *this_fn_name = "Computing the gradient of the strain rate exponent.\n";
+  const double grad_strain_exp_proj = inverse_params->grad_strain_exp_proj;
+  const double average_visc_area = inverse_params->average_visc_area;
+
+#if 1
+  inverse_params->grad_strain_exp_visc_avg = grad_strain_exp_proj * average_visc_area;
+
+
+  /* Destroy vectors */
+#endif
   YMIR_GLOBAL_INFOF ("Done %s", this_fn_name);
+
+}
+
+void 
+slabs_compute_gradient_weakfactor_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+							       const char *vtk_filepath)
+{
+  const char *this_fn_name = "Computing the gradient of the strain rate exponent.\n";
+  const double grad_weak_factor_proj = inverse_params->grad_weak_factor_proj;
+  const double average_visc_area = inverse_params->average_visc_area;
+
+#if 1
+  inverse_params->grad_weak_factor_visc_avg = grad_weak_factor_proj * average_visc_area;
+
+
+  /* Destroy vectors */
+#endif
+  YMIR_GLOBAL_INFOF ("Done %s", this_fn_name);
+
+}
+void 
+slabs_compute_gradient_yield_stress_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+						       const char *vtk_filepath)
+{
+  const char *this_fn_name = "Computing the gradient of the strain rate exponent.\n";
+  const double grad_yield_stress_proj = inverse_params->grad_yield_stress_proj;
+  const double average_visc_area = inverse_params->average_visc_area;
+
+#if 1
+  inverse_params->grad_yield_stress_visc_avg = grad_yield_stress_proj * average_visc_area;
+
+
+  /* Destroy vectors */
+#endif
+  YMIR_GLOBAL_INFOF ("Done %s", this_fn_name);
+
+}
+void 
+slabs_compute_gradient_activation_energy_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+							    const char *vtk_filepath)
+{
+  const char *this_fn_name = "Computing the gradient of the strain rate exponent.\n";
+  const double grad_activation_energy_proj = inverse_params->grad_activation_energy_proj;
+  const double average_visc_area = inverse_params->average_visc_area;
+
+#if 1
+  inverse_params->grad_activation_energy_visc_avg = grad_activation_energy_proj * average_visc_area;
+
+
+  /* Destroy vectors */
+#endif
+  YMIR_GLOBAL_INFOF ("Done %s", this_fn_name);
+
+}
+void 
+slabs_compute_gradient_upper_mantle_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+						       const char *vtk_filepath)
+{
+  const char *this_fn_name = "Computing the gradient of the strain rate exponent.\n";
+  const double grad_upper_mantle_proj = inverse_params->grad_upper_mantle_prefactor_proj;
+  const double average_visc_area = inverse_params->average_visc_area;
+
+#if 1
+  inverse_params->grad_upper_mantle_prefactor_visc_avg = grad_upper_mantle_proj * average_visc_area;
+
+
+  /* Destroy vectors */
+#endif
+  YMIR_GLOBAL_INFOF ("Done %s", this_fn_name);
+
+}
+void 
+slabs_compute_gradient_transition_zone_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+							  const char *vtk_filepath)
+{
+  const char *this_fn_name = "Computing the gradient of the strain rate exponent.\n";
+  const double grad_transition_zone_proj = inverse_params->grad_transition_zone_prefactor_proj;
+  const double average_visc_area = inverse_params->average_visc_area;
+
+#if 1
+  inverse_params->grad_transition_zone_prefactor_visc_avg = grad_transition_zone_proj * average_visc_area;
+
+
+  /* Destroy vectors */
+#endif
+  YMIR_GLOBAL_INFOF ("Done %s", this_fn_name);
+
+}
+void 
+slabs_compute_gradient_lower_mantle_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+						       const char *vtk_filepath)
+{
+  const char *this_fn_name = "Computing the gradient of the strain rate exponent.\n";
+  const double grad_lower_mantle_proj = inverse_params->grad_lower_mantle_prefactor_proj;
+  const double average_visc_area = inverse_params->average_visc_area;
+
+#if 1
+  inverse_params->grad_lower_mantle_prefactor_visc_avg = grad_lower_mantle_proj * average_visc_area;
+
+
+  /* Destroy vectors */
+#endif
+  YMIR_GLOBAL_INFOF ("Done %s", this_fn_name);
+
 }
 
 
-static void
-slabs_surface_velocity_viz (slabs_stokes_state_t *state,
-			    ymir_pressure_elem_t *press_elem,
-			    const char *vtk_filepath,
-			    slabs_physics_options_t *physics_options)
+
+void 
+slabs_compute_stress_second_invariant (slabs_inverse_problem_params_t *inverse_params,
+				       const char *vtk_filepath)
+{
+  ymir_mesh_t *mesh = inverse_params->mesh;
+  ymir_vec_t *eu = inverse_params->eu;
+  ymir_vec_t *viscosity = inverse_params->viscosity;
+  ymir_vec_t *eu_dummy = ymir_vec_template (eu);
+  ymir_vec_t *second_invariant_stress = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+
+#if 1
+  ymir_vec_multiply_in1 (viscosity, eu);
+  ymir_velocity_symtens_dotprod (eu_dummy, eu_dummy, second_invariant_stress);
+
+  ymir_vec_destroy (eu_dummy);
+  ymir_vec_destroy (second_invariant_stress);
+#endif
+}
+
+
+#if 1
+void 
+slabs_compute_stress_second_invariant_adjoint_rhs (slabs_inverse_problem_params_t *inverse_params,
+						   const char *vtk_filepath)
+{
+  ymir_mesh_t *mesh = inverse_params->mesh;
+  ymir_vec_t *eu = inverse_params->eu;
+  ymir_vec_t *viscosity = inverse_params->viscosity;
+  ymir_vec_t *eu_dummy = ymir_vec_clone (eu);
+  ymir_vec_t *second_invariant_stress1 = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  ymir_vec_t *second_invariant_stress2 = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  ymir_vec_t *viscosity_deriv_IIe = inverse_params->viscosity_deriv_IIe;
+  ymir_vec_t *u = inverse_params->u;
+  ymir_vec_t *rhs1 = ymir_vec_template (u);
+  ymir_vec_t *rhs_stress_second_invariant = ymir_vec_template (u);
+  ymir_vel_dir_t *vel_dir = inverse_params->vel_dir;
+  ymir_stress_op_t     *stress_op1, *stress_op2;
+  const char           *this_fn_name  = "Constructing RHS of Adjoint";
+
+
+  ymir_vec_multiply_in1 (viscosity, eu_dummy);
+  ymir_vec_scale (2.0, eu_dummy);
+  /* Part: div (8*viscosity^2 * e(u)) */
+  ymir_vec_multiply_in1 (viscosity, second_invariant_stress1);
+  ymir_vec_scale (8.0, second_invariant_stress1);
+  /* Part  : 8*viscosity*viscosity,IIe*(eu:eu)*(eu:eu_test) */
+
+  ymir_velocity_symtens_dotprod (eu_dummy, eu_dummy, second_invariant_stress2);
+  ymir_vec_multiply_in1 (viscosity, second_invariant_stress2);
+  ymir_vec_multiply_in1 (viscosity_deriv_IIe, second_invariant_stress2);
+  ymir_vec_scale (8.0, second_invariant_stress2);
+  stress_op1  = ymir_stress_op_new ( second_invariant_stress1, vel_dir, NULL, u, NULL);
+  stress_op2  = ymir_stress_op_new ( second_invariant_stress2, vel_dir, NULL, u, NULL);
   
-{
-  ymir_mesh_t         *mesh = state->vel_press_vec->mesh;
-  ymir_vec_t          *up = state->vel_press_vec;
-  ymir_vec_t          *u = ymir_cvec_new (mesh,3);
-  ymir_vec_t          *surface_vel = ymir_face_cvec_new (mesh, SL_TOP, 3);
-  char                path[BUFSIZ];
-    
-  ymir_stokes_vec_get_velocity (up, u, press_elem);
-  ymir_interp_vec (u, surface_vel);
-  /* Write out stencil to vtk file */
-  snprintf (path, BUFSIZ, "%s_surface_velocity", vtk_filepath);
-  ymir_vtk_write (mesh, path,
-		  surface_vel, "surface_vel",
-		  NULL);
+  ymir_stress_op_apply (u, rhs1, stress_op1);
+  ymir_stress_op_apply (u, rhs_stress_second_invariant, stress_op2);
+  ymir_vec_add (1.0, rhs1, rhs_stress_second_invariant);
 
-  ymir_vec_destroy (surface_vel);
-  ymir_vec_destroy (u);
+  ymir_stress_op_destroy (stress_op1);
+  ymir_stress_op_destroy (stress_op2);
+
+
+  ymir_vec_destroy (eu_dummy);
 
 }
 
+#endif
 
-void
-slabs_inverse_params_plot_velocity (slabs_inverse_problem_params_t *inverse_params,
-				    const char *vtk_filepath)
-{
-  ymir_mesh_t         *mesh = inverse_params->mesh;
-  ymir_vec_t          *surface_vel = ymir_face_cvec_new (mesh, SL_TOP, 1);
-  char                path[BUFSIZ];
-    
-  ymir_interp_vec (inverse_params->velocity_data_vec, surface_vel);
-  /* Write out stencil to vtk file */
-  snprintf (path, BUFSIZ, "%s_surface_velocity_data", vtk_filepath);
-  ymir_vtk_write (mesh, path,
-		  surface_vel, "surface_vel",
-		  NULL);
 
-  ymir_vec_destroy (surface_vel);
 
-				    
-}
 
  /* Compute surface velocities misfit */
  static double
@@ -427,38 +867,6 @@ slabs_inverse_params_plot_velocity (slabs_inverse_problem_params_t *inverse_para
    return inverse_params->misfit_plate_vel;
  }
 
-#if 0
-void 
-slabs_gradient_parameters (const slabs_gradient_type_t *grad_param, slabs_inverse_problem_params_t *inverse_params)
-{
-  switch (inverse_params->gradient_type) {
-  case SL_GRADIENT_WEAKFACTOR:
-    slabs_compute_gradient_weakfactor (inverse_params, NULL);
-    break;
-    
-  case SL_GRADIENT_STRAIN_RATE_EXPONENT:
-    slabs_compute_gradient_strain_rate_exponent (inverse_params, NULL);
-    break;
-
-  case SL_GRADIENT_UPPER_MANTLE_PREFACTOR:
-    slabs_compute_gradient_UM_prefactor (inverse_params, NULL);
-    break;
-
-  case SL_GRADIENT_TRANSITION_ZONE_PREFACTOR:
-    slabs_compute_gradient_transition_zone_prefactor (inverse_params, NULL);
-    break;
-
-  case SL_GRADIENT_YIELD_STRESS:
-    slabs_compute_gradient_yield_stress (inverse_params, NULL);
-    break;
-
-  case SL_GRADIENT_ACTIVATION_ENERGY:
-    slabs_compute_gradient_activation_energy (inverse_params, NULL);
-    break;
-  }
-}
- 
-#endif
 
 void 
 slabs_compute_gradient_weakfactor (slabs_inverse_problem_params_t *inverse_params,
@@ -611,6 +1019,47 @@ slabs_compute_gradient_yield_stress (slabs_inverse_problem_params_t *inverse_par
 
 
 void 
+slabs_compute_gradient_activation_energy (slabs_inverse_problem_params_t *inverse_params,
+					  const char *vtk_filepath)
+
+
+{
+  const char *this_fn_name = "Computing the gradient of the activation energy.\n";
+#if 0 
+  ymir_dvec_t *no_yielding = inverse_params->no_yielding;
+  ymir_dvec_t *no_upper_bound = inverse_params->no_upper_bound;
+  ymir_dvec_t *grad_activation_energy = inverse_params->grad_activation_energy;
+  ymir_dvec_t *euev = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
+  ymir_dvec_t *viscosity_mod = ymir_vec_clone (inverse_params->viscosity_mod);
+  ymir_dvec_t *ones = inverse_params->ones;
+  double  e_a = physics_options->viscosity_temp_decay;
+  double power;
+  char                path[BUFSIZ];
+
+ 
+
+  ymir_dvec_multiply_in (euev, viscosity_mod);  
+  ymir_dvec_t *deriv = ymir_vec_template (state->weak_vec);
+  slabs_physics_viscosity_deriv_activation_energy (deriv, state, physics_options);
+  ymir_vec_multiply_in1 (viscosity_mod, deriv);
+  ymir_mass_apply (deriv, grad_activation_energy);
+
+  
+  /* Compute integral */
+  double grad_active_energy = inverse_params->grad_activ_energy;
+  grad_active_energy =  ymir_vec_innerprod (grad_activation_energy, ones);
+  YMIR_GLOBAL_PRODUCTIONF ("integral 2 is: %g\n.", grad_active_energy);
+
+
+  /* Destroy vectors */
+  ymir_vec_destroy (viscosity_mod);
+  ymir_vec_destroy (deriv);
+#endif
+  YMIR_GLOBAL_INFOF ("Finished %s", this_fn_name);
+    
+}
+
+void 
 slabs_compute_gradient_UM_prefactor (slabs_inverse_problem_params_t *inverse_params,
 				       const char *vtk_filepath)
 
@@ -690,13 +1139,14 @@ slabs_compute_gradient_weakzone_prior (slabs_inverse_problem_params_t *inverse_p
   ymir_dvec_t *weakzone_marker = inverse_params->weakzone_marker;
   ymir_dvec_t *weakzone_mean = ymir_vec_template (weakzone_marker);
   ymir_dvec_t *weakzone_factor_prior_misfit = inverse_params->weakzone_factor_prior_misfit;
-  double       variance_weakfactor = inverse_params->prior_prefactor; 
+  double       variance_weakfactor = inverse_params->prior_weakfactor_scale; 
 
   char                path[BUFSIZ];
 
   
     
   snprintf (path, BUFSIZ, "%s_grad_strain_rate_exponent", vtk_filepath);
+  ymir_vec_scale (inverse_params->prior_weakfactor_scale, weakzone_mean);
   ymir_vec_add (-1.0, weakzone_marker, weakzone_mean);
   ymir_vec_multiply_in1 (weakzone_marker, weakzone_mean);
   ymir_vec_scale (variance_weakfactor, weakzone_mean);
@@ -730,11 +1180,12 @@ slabs_compute_strain_rate_exponent_prior (slabs_inverse_problem_params_t *invers
   ymir_dvec_t *strain_exp_mean = ymir_vec_template (upper_mantle_marker);
   ymir_dvec_t *strain_rate_exponent_prior_misfit = inverse_params->strain_rate_exponent_prior_misfit;
   ymir_dvec_t *strain_exp_distribution = ymir_vec_template (upper_mantle_marker);
-  double       variance_strain_exp = inverse_params->prior_strain_exp;
+  double       variance_strain_exp = inverse_params->prior_strain_rate_exponent_scale;
   char                path[BUFSIZ];
 
   
   snprintf (path, BUFSIZ, "%s_grad_strain_rate_exponent", vtk_filepath);
+  ymir_vec_scale (inverse_params->prior_strain_rate_exponent_scale, strain_exp_mean);  
   ymir_vec_scale (inverse_params->strain_exp, strain_exp_distribution);
   ymir_vec_add (-1.0, strain_exp_distribution, strain_exp_mean);
   ymir_vec_multiply_in1 (strain_exp_distribution, strain_exp_mean);
@@ -775,6 +1226,7 @@ slabs_compute_activation_energy_prior (slabs_inverse_problem_params_t *inverse_p
 
   
   snprintf (path, BUFSIZ, "%s_grad_strain_rate_exponent", vtk_filepath);
+  ymir_vec_scale (inverse_params->prior_activation_energy_scale, activation_energy_mean);  
   ymir_vec_scale (inverse_params->strain_exp, activation_energy_distribution);
   ymir_vec_add (-1.0, activation_energy_distribution, activation_energy_mean);
   ymir_vec_multiply_in1 (activation_energy_distribution, activation_energy_mean);
@@ -816,6 +1268,7 @@ slabs_compute_yield_stress_prior (slabs_inverse_problem_params_t *inverse_params
 
   
   snprintf (path, BUFSIZ, "%s_grad_strain_rate_exponent", vtk_filepath);
+  ymir_vec_scale (inverse_params->prior_yield_stress_scale, yield_stress_mean);  
   ymir_vec_scale (inverse_params->yield_stress, yield_stress_distribution);
   ymir_vec_add (-1.0, yield_stress_distribution, yield_stress_mean);
   ymir_vec_multiply_in1 (yield_stress_distribution, yield_stress_mean);
@@ -857,6 +1310,7 @@ slabs_compute_upper_mantle_prefactor_prior (slabs_inverse_problem_params_t *inve
 
   
   snprintf (path, BUFSIZ, "%s_grad_strain_rate_exponent", vtk_filepath);
+  ymir_vec_scale (inverse_params->prior_upper_mantle_prefactor_scale, upper_mantle_prefactor_mean);  
   ymir_vec_scale (inverse_params->upper_mantle_prefactor, upper_mantle_prefactor_distribution);
   ymir_vec_add (-1.0, upper_mantle_prefactor_distribution, upper_mantle_prefactor_mean);
   ymir_vec_multiply_in1 (upper_mantle_prefactor_distribution, upper_mantle_prefactor_mean);
@@ -898,6 +1352,7 @@ slabs_transition_zone_prefactor_prior (slabs_inverse_problem_params_t *inverse_p
 
   
   snprintf (path, BUFSIZ, "%s_grad_strain_rate_exponent", vtk_filepath);
+  ymir_vec_scale (inverse_params->prior_transition_zone_prefactor_scale, transition_zone_prefactor_mean);  
   ymir_vec_scale (inverse_params->transition_zone_prefactor, transition_zone_prefactor_distribution);
   ymir_vec_add (-1.0, transition_zone_prefactor_distribution, transition_zone_prefactor_mean);
   ymir_vec_multiply_in1 (transition_zone_prefactor_distribution, transition_zone_prefactor_mean);
@@ -918,6 +1373,277 @@ slabs_transition_zone_prefactor_prior (slabs_inverse_problem_params_t *inverse_p
   ymir_vec_destroy (transition_zone_prefactor_distribution);
 
 }
+
+
+static void
+slabs_average_viscosity_area (slabs_nl_stokes_problem_t *nl_stokes,
+			      slabs_inverse_problem_params_t *inverse_params)
+{
+  ymir_vec_t           *viscosity_stencil = inverse_params->viscosity_stencil;
+  ymir_vec_t           *log_viscosity = inverse_params->log_viscosity;
+  ymir_vec_t           *ones = inverse_params->ones;
+  ymir_vec_t           *out = ymir_vec_clone (viscosity_stencil);
+
+  ymir_mass_apply (ones, out);
+  inverse_params->average_visc_area = exp (ymir_vec_innerprod (log_viscosity, out)) ;
+  inverse_params->average_visc_area_misfit_cost = 0.5 * (inverse_params->average_visc_area - inverse_params->average_viscosity_data)
+    * (inverse_params->average_visc_area - inverse_params->average_viscosity_data);
+  inverse_params->average_visc_area_misfit = 0.5 * (inverse_params->average_visc_area - inverse_params->average_viscosity_data);
+  
+}
+ 
+#if 1
+void 
+slabs_gradient_viscosity_average (slabs_nl_stokes_problem_t *nl_stokes,
+				  slabs_inverse_problem_params_t *inverse_params,
+				  const char *vtk_filepath)
+{
+  ymir_vec_t           *viscosity = nl_stokes->viscosity;
+  ymir_vec_t           *inverse_viscosity = ymir_vec_template (viscosity);
+  ymir_vec_t           *viscosity_stencil = inverse_params->viscosity_stencil;
+  ymir_vec_t           *viscosity_deriv_param = inverse_params->deriv_viscosity_param;
+  ymir_vec_t           *out = inverse_params->deriv_viscosity_rhs;
+  ymir_vec_t           *grad_visc = ymir_vec_template (viscosity);
+  ymir_vec_t           *ones = inverse_params->ones;
+  double               average_visc_area = inverse_params->average_visc_area;
+  double               gradient_visc_area = inverse_params->gradient_visc_area;
+  ymir_mesh_t          *mesh = viscosity->mesh;
+  mangll_t             *mangll = mesh->ma;
+  char                path[BUFSIZ];
+  
+  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const unsigned int  N = ymir_n (mangll->N);
+  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  int nodeid;
+  sc_dmatrix_t       *viscosity_el_mat, *inverse_viscosity_el_mat;
+  sc_dmatrix_t       *viscosity_stencil_el_mat, *deriv_viscosity_el_mat, *out_el_mat;
+  mangll_locidx_t     elid;
+
+
+  /* create work variables */
+  viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  inverse_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  viscosity_stencil_el_mat = sc_dmatrix_new (n_nodes_per_el, 1); 
+  deriv_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  out_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  
+ 
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_dvec_get_elem (viscosity, viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (viscosity_deriv_param, deriv_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (inverse_viscosity, inverse_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+    ymir_dvec_get_elem (out, out_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+
+
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
+      double *_sc_restrict viscosity_area = viscosity_stencil_el_mat->e[0] +  nodeid;
+      double *_sc_restrict visc = viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict viscosity_deriv = deriv_viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict output = out_el_mat->e[0] +  nodeid;
+ 
+      output[0] = -viscosity_area[0] * viscosity_deriv[0] / visc[0];
+      
+    }
+     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
+     ymir_dvec_set_elem (out, out_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+
+  }
+  ymir_vec_scale (average_visc_area, out);
+  ymir_mass_apply (out, grad_visc);
+  inverse_params->gradient_visc_area = ymir_vec_innerprod (grad_visc, ones);
+
+  snprintf (path, BUFSIZ, "%s_log_viscosity", vtk_filepath);
+  ymir_vtk_write (mesh, path,
+		  inverse_viscosity, "inverse viscosity",
+		  NULL);
+
+
+
+  sc_dmatrix_destroy (inverse_viscosity_el_mat);
+  sc_dmatrix_destroy (viscosity_el_mat);
+  sc_dmatrix_destroy (viscosity_stencil_el_mat);
+  sc_dmatrix_destroy (deriv_viscosity_el_mat);
+  sc_dmatrix_destroy (out_el_mat);
+  ymir_vec_destroy (inverse_viscosity);
+  ymir_vec_destroy (grad_visc);
+
+}
+
+#endif
+
+
+void 
+slabs_viscosity_average_velocity_deriv (slabs_nl_stokes_problem_t *nl_stokes,
+					slabs_inverse_problem_params_t *inverse_params,
+					const char *vtk_filepath)
+{
+  ymir_vec_t           *viscosity = nl_stokes->viscosity;
+  ymir_vec_t           *inverse_viscosity = ymir_vec_template (viscosity);
+  ymir_vec_t           *viscosity_stencil = inverse_params->viscosity_stencil;
+  ymir_vec_t           *viscosity_deriv_param = inverse_params->deriv_viscosity_param;
+  ymir_vec_t           *viscosity_deriv_IIe = inverse_params->viscosity_deriv_IIe;
+  ymir_vec_t           *out = inverse_params->viscosity_average_rhs;
+  ymir_vec_t           *grad_visc = ymir_vec_template (viscosity);
+  ymir_vec_t           *ones = inverse_params->ones;
+  double               average_visc_area = inverse_params->average_visc_area;
+  double               average_visc_area_misfit = inverse_params->average_visc_area_misfit;
+  ymir_mesh_t          *mesh = viscosity->mesh;
+  mangll_t             *mangll = mesh->ma;
+  char                path[BUFSIZ];
+  
+  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const unsigned int  N = ymir_n (mangll->N);
+  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  int nodeid;
+  sc_dmatrix_t       *viscosity_el_mat, *inverse_viscosity_el_mat;
+  sc_dmatrix_t       *viscosity_stencil_el_mat, *viscosity_deriv_el_mat, *out_el_mat;
+  mangll_locidx_t     elid;
+
+
+  /* create work variables */
+  viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  inverse_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  viscosity_stencil_el_mat = sc_dmatrix_new (n_nodes_per_el, 1); 
+  viscosity_deriv_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  out_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_dvec_get_elem (viscosity, viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (viscosity_deriv_IIe, viscosity_deriv_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    ymir_dvec_get_elem (inverse_viscosity, inverse_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+    ymir_dvec_get_elem (out, out_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+
+
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
+      double *_sc_restrict visc = viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict viscosity_deriv = viscosity_deriv_el_mat->e[0] +  nodeid;
+      double *_sc_restrict output = out_el_mat->e[0] +  nodeid;
+ 
+      output[0] = average_visc_area_misfit * average_visc_area_misfit * viscosity_deriv[0] / visc[0];
+      
+    }
+     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
+     ymir_dvec_set_elem (out, out_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+
+  }
+
+  snprintf (path, BUFSIZ, "%s_log_viscosity", vtk_filepath);
+  ymir_vtk_write (mesh, path,
+		  inverse_viscosity, "inverse viscosity",
+		  NULL);
+
+
+
+  sc_dmatrix_destroy (inverse_viscosity_el_mat);
+  sc_dmatrix_destroy (viscosity_el_mat);
+  sc_dmatrix_destroy (viscosity_stencil_el_mat);
+  sc_dmatrix_destroy (viscosity_deriv_el_mat);
+  sc_dmatrix_destroy (out_el_mat);
+  ymir_vec_destroy (inverse_viscosity);
+}
+
+
+
+void
+slabs_log_viscosity ( slabs_nl_stokes_problem_t *nl_stokes,
+		     const char *vtk_filepath)
+{
+  ymir_vec_t           *viscosity = nl_stokes->viscosity;
+  ymir_vec_t           *inverse_viscosity = ymir_vec_template (viscosity);
+  ymir_vec_t           *log_viscosity = ymir_vec_template (viscosity);
+  ymir_vec_t           *viscosity_IIe = ymir_vec_clone (nl_stokes->stokes_op->stress_op->dvdIIe);
+  ymir_vec_t           *IIe = ymir_vec_template (viscosity);
+  ymir_vec_t           *u = nl_stokes->stokes_op->stress_op->usol;
+  ymir_mesh_t          *mesh = viscosity->mesh;
+  mangll_t             *mangll = mesh->ma;
+  ymir_velocity_elem_t *vel_elem = ymir_velocity_elem_new (mesh->cnodes->N, mesh->ma->ompsize);
+  char                path[BUFSIZ];
+  
+  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const unsigned int  N = ymir_n (mangll->N);
+  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  int nodeid;
+  sc_dmatrix_t       *viscosity_el_mat, *inverse_viscosity_el_mat;
+  sc_dmatrix_t       *log_viscosity_el_mat;
+  double             *x, *y, *z, *tmp_el;
+  mangll_locidx_t     elid;
+
+
+  /* create work variables */
+  viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  inverse_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  log_viscosity_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  
+  x = YMIR_ALLOC (double, n_nodes_per_el);
+  y = YMIR_ALLOC (double, n_nodes_per_el);
+  z = YMIR_ALLOC (double, n_nodes_per_el);
+  tmp_el = YMIR_ALLOC (double, n_nodes_per_el);
+  ymir_second_invariant_vec (u, IIe, vel_elem);
+     
+
+ 
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    slabs_elem_get_gauss_coordinates (x, y, z, elid, mangll, tmp_el);
+    ymir_dvec_get_elem (viscosity, viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_READ);
+    /* ymir_dvec_get_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, */
+    /* 			YMIR_WRITE); */
+    ymir_dvec_get_elem (inverse_viscosity, inverse_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+    ymir_dvec_get_elem (log_viscosity, inverse_viscosity_el_mat, YMIR_STRIDE_NODE, elid,
+			YMIR_WRITE);
+
+
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
+      double *_sc_restrict visc = viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict inverse_visc = inverse_viscosity_el_mat->e[0] +  nodeid;
+      double *_sc_restrict log_visc = log_viscosity_el_mat->e[0] +  nodeid;
+
+      inverse_visc[0] = 1. / visc[0];
+      log_visc[0] = log (visc[0]);
+
+      
+    }
+     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
+     ymir_dvec_set_elem (inverse_viscosity, inverse_viscosity_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+
+
+  }
+
+  snprintf (path, BUFSIZ, "%s_log_viscosity", vtk_filepath);
+  ymir_vtk_write (mesh, path,
+		  inverse_viscosity, "inverse viscosity",
+		  log_viscosity, "log viscosity",
+		  NULL);
+
+
+
+  sc_dmatrix_destroy (inverse_viscosity_el_mat);
+  sc_dmatrix_destroy (log_viscosity_el_mat);
+  sc_dmatrix_destroy (viscosity_el_mat);
+  ymir_vec_destroy (log_viscosity);
+  ymir_vec_destroy (inverse_viscosity);
+  ymir_vec_destroy (viscosity_IIe);
+  ymir_velocity_elem_destroy (vel_elem);
+  ymir_vec_destroy (IIe);
+  YMIR_FREE (x);
+  YMIR_FREE (y);
+  YMIR_FREE (z);
+  YMIR_FREE (tmp_el);
+		    
+}
+
 
 
 static void
@@ -994,234 +1720,4 @@ slabs_compute_gradient_UM_prefactor_viscosity (slabs_inverse_problem_params_t *i
 
 
 
-
-static inline 
-void ComputeStressEigenVector(double A[3][3], double Q[3][3], double w[3])
-{
-  const int n = 3;
-  int i, j, p, q, r,  nIter;
-  double sd, so;                  // Sums of diagonal resp. off-diagonal elements
-  double s, c, t;                 // sin(phi), cos(phi), tan(phi) and temporary storage
-  double g, h, z, theta;          // More temporary storage
-  double thresh;
-
-  // Initialize Q to the identitity matrix
-
-  for (i=0; i < n; i++)
-  {
-    Q[i][i] = 1.0;
-    for (j=0; j < i; j++)
-      Q[i][j] = Q[j][i] = 0.0;
-  }
-
-
-  // Initialize w to diag(A)
-  for (i=0; i < n; i++)
-    w[i] = A[i][i];
-
-  // Calculate SQR(tr(A))
-  sd = 0.0;
-  for (i=0; i < n; i++)
-    sd += fabs(w[i]);
-  sd = sd*sd;
-
-  // Main iteration loop
-  for ( nIter=0; nIter < 50; nIter++)
-  {
-    // Test for convergence
-    so = 0.0;
-    for (p=0; p < n; p++)
-      for (q=p+1; q < n; q++)
-        so += fabs(A[p][q]);
-    if (so == 0.0)
-return;
-
-    if (nIter < 4)
-      thresh = 0.2 * so / (n*n);
-    else
-      thresh = 0.0;
-
-    // Do sweep
-    for (p=0; p < n; p++)
-      for (q=p+1; q < n; q++)
-      {
-        g = 100.0 * fabs(A[p][q]);
-        if (nIter > 4  &&  fabs(w[p]) + g == fabs(w[p])
-                       &&  fabs(w[q]) + g == fabs(w[q]))
-        {
-          A[p][q] = 0.0;
-        }
-        else if (fabs(A[p][q]) > thresh)
-        {
-          // Calculate Jacobi transformation
-          h = w[q] - w[p];
-          if (fabs(h) + g == fabs(h))
-          {
-            t = A[p][q] / h;
-          }
-          else
-          {
-            theta = 0.5 * h / A[p][q];
-            if (theta < 0.0)
-              t = -1.0 / (sqrt(1.0 + (theta*theta)) - theta);
-            else
-              t = 1.0 / (sqrt(1.0 + (theta*theta)) + theta);
-          }
-          c = 1.0/sqrt(1.0 + (t*t));
-          s = t * c;
-          z = t * A[p][q];
-
-          // Apply Jacobi transformation
-          A[p][q] = 0.0;
-          w[p] -= z;
-          w[q] += z;
-          for (r=0; r < p; r++)
-          {
-            t = A[r][p];
-            A[r][p] = c*t - s*A[r][q];
-            A[r][q] = s*t + c*A[r][q];
-          }
-          for (r=p+1; r < q; r++)
-          {
-            t = A[p][r];
-            A[p][r] = c*t - s*A[r][q];
-            A[r][q] = s*t + c*A[r][q];
-          }
-          for (r=q+1; r < n; r++)
-          {
-            t = A[p][r];
-            A[p][r] = c*t - s*A[q][r];
-            A[q][r] = s*t + c*A[q][r];
-          }
-
-          // Update eigenvectors
-          for (r=0; r < n; r++)
-          {
-            t = Q[r][p];
-            Q[r][p] = c*t - s*Q[r][q];
-            Q[r][q] = s*t + c*Q[r][q];
-          }
-        }
-      }
-  }
-}
-
-
-void
-slabs_stress_tensor_output (ymir_vec_t *stress_tensor,
-			    const char *vtk_filepath)
-			    /* slabs_inverse_problem_params_t *inverse_params) */
-{
-  ymir_mesh_t *mesh = stress_tensor->mesh;
-  mangll_t    *mangll = mesh->ma;
-  ymir_dvec_t *IIe_stress = ymir_dvec_new (mesh, 1, YMIR_GAUSS_NODE);
-  ymir_dvec_t *eig_stress = ymir_dvec_new (mesh, 3, YMIR_GAUSS_NODE);
-  ymir_dvec_t *eig_col1 = ymir_dvec_new (mesh, 3, YMIR_GAUSS_NODE);
-  MPI_Comm            mpicomm = mesh->ma->mpicomm;
-
-  char                path[BUFSIZ];
-  const mangll_locidx_t  n_elements = mesh->cnodes->K;
-  const unsigned int  N = ymir_n (mangll->N);
-  const unsigned int  n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
-  int nodeid;
-  sc_dmatrix_t       *stress_el_mat, *eig_stress_el_mat, *stress_axis_el_mat ;
-  double             *x, *y, *z, *tmp_el;
-  double              mat[3][3], Q[3][3], w[3];
-  mangll_locidx_t     elid;
-
-  /* create work variables */
-  stress_el_mat = sc_dmatrix_new (n_nodes_per_el, 6);
-  eig_stress_el_mat = sc_dmatrix_new (n_nodes_per_el, 3);
-  stress_axis_el_mat = sc_dmatrix_new (n_nodes_per_el, 3);
-
-  x = YMIR_ALLOC (double, n_nodes_per_el);
-  y = YMIR_ALLOC (double, n_nodes_per_el);
-  z = YMIR_ALLOC (double, n_nodes_per_el);
-  tmp_el = YMIR_ALLOC (double, n_nodes_per_el);
-
-  /* sc_dmatrix_set_value (stress_el_mat, 1.0); */
-
-
-
-  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
-    /* get coordinates of this element at Gauss nodes */
-    slabs_elem_get_gauss_coordinates (x, y, z, elid, mangll, tmp_el);
-    ymir_dvec_get_elem (stress_tensor, stress_el_mat, YMIR_STRIDE_NODE, elid,
-			YMIR_READ);
-    /* ymir_dvec_get_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, */
-    /* 			YMIR_WRITE); */
-    ymir_dvec_get_elem (eig_col1, stress_axis_el_mat, YMIR_STRIDE_NODE, elid,
-			YMIR_WRITE);
-
-
-    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++){
-      double *_sc_restrict a = stress_el_mat->e[0] + 6 * nodeid;
-      double *_sc_restrict b = stress_axis_el_mat->e[0] + 3 * nodeid;
-
-      /* double *_sc_restrict c = stress_el_mat->e[0] + 9 * nodeid; */
-
-      mat[0][0] = a[0];
-      mat[0][1] = a[1];
-      mat[0][2] = a[2];
-      mat[1][0] = a[1];
-      mat[1][1] = a[3];
-      mat[1][2] = a[4];
-      mat[2][0] = a[2];
-      mat[2][1] = a[4];
-      mat[2][2] = a[5];
-      ComputeStressEigenVector(mat, Q, w);
-      if ( (w[0]) > (w[1]) && (w[0]) > (w[2])){
-	b[0] =  w[0] * Q[0][0];
-	b[1] =  w[0] * Q[1][0];
-	b[2] =  w[0] * Q[2][0];
-      }
-      if ((w[0]) > (w[1]) && (w[2]) > (w[0])){
-	b[0] =  w[2] * Q[0][2];
-	b[1] =  w[2] * Q[1][2];
-	b[2] =  w[2] * Q[2][2];
-
-      }
-      if  ( (w[1]) > (w[0]) && (w[1]) > (w[2])){
-	b[0] =  w[1] * Q[0][1];
-	b[1] =  w[1] * Q[1][1];
-	b[2] =  w[1] * Q[2][1];
- 
-      }
-      if  ((w[1]) > (w[0]) && (w[2]) > (w[1])){
-	b[0] =  w[2] * Q[0][2];
-	b[1] =  w[2] * Q[1][2];
-	b[2] =  w[2] * Q[2][2];
-	
-      }
-      
-	
-
-      YMIR_GLOBAL_PRODUCTIONF ("stuff: %f %f\n", b[1], b[2]);
-      
-    }
-     /* ymir_dvec_set_elem (eig_stress, eig_stress_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET); */
-     ymir_dvec_set_elem (eig_col1, stress_axis_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
-
-
-  }
-
-  ymir_velocity_symtens_dotprod (stress_tensor, stress_tensor, IIe_stress);
-  snprintf (path, BUFSIZ, "%s_stress_tensor", vtk_filepath);
-  ymir_vtk_write (mesh, path,
-		  IIe_stress, "stress",
-		  eig_col1, "stress axis",
-		  NULL);
-
-  sc_dmatrix_destroy (stress_el_mat);
-  sc_dmatrix_destroy (eig_stress_el_mat);
-  sc_dmatrix_destroy (stress_axis_el_mat);
-  YMIR_FREE (x);
-  YMIR_FREE (y);
-  YMIR_FREE (z);
-  YMIR_FREE (tmp_el);
-  ymir_vec_destroy (IIe_stress);
-  ymir_vec_destroy (eig_stress);
-  ymir_vec_destroy (eig_col1);
-
-}
 

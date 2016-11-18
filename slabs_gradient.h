@@ -171,6 +171,9 @@ typedef struct slabs_inverse_problem_params
   ymir_vec_t           *viscosity_deriv_IIe;
   ymir_vec_t           *viscosity_second_deriv_IIe;
   ymir_vec_t           *viscosity_average_rhs;
+  ymir_vec_t           *sam_weakzone_stencil;
+  ymir_vec_t           *izu_weakzone_stencil;
+  ymir_vec_t           *ryu_weakzone_stencil;
   ymir_mesh_t          *mesh;
   ymir_pressure_elem_t *press_elem;
   ymir_stokes_op_t     *stokes_op;
@@ -214,6 +217,21 @@ typedef struct slabs_inverse_problem_params
   double      grad_transition_zone_prefactor_visc_avg;
   double      grad_lower_mantle_prefactor_visc_avg;
 
+  int    compute_gradient_vel_weakfactor;
+  int    compute_gradient_vel_strain_rate_exponent;
+  int    compute_gradient_vel_yield_stress;
+  int    compute_gradient_vel_activation_energy;
+  int    compute_gradient_vel_UM_prefactor;
+  int    compute_gradient_vel_TZ_prefactor;
+  int    compute_gradient_viscosity_weakfactor;
+  int    compute_gradient_viscosity_strain_rate_exponent;
+  int    compute_gradient_viscosity_yield_stress;
+  int    compute_gradient_viscosity_activation_energy;
+  int    compute_gradient_viscosity_UM_prefactor;
+  int    compute_gradient_viscosity_TZ_prefactor;
+
+
+
 
   /* gradient descent parameters */
   double      alpha;
@@ -224,8 +242,8 @@ typedef struct slabs_inverse_problem_params
   ymir_vec_t *grad_viscosity_strain_rate_exponent;
   ymir_vec_t *grad_viscosity_yield_stress;
   ymir_vec_t *grad_viscosity_activation_energy;
-  ymir_vec_t *grad_viscosity_upper_mantle;
-  ymir_vec_t *grad_viscosity_transition_zone;
+  ymir_vec_t *grad_viscosity_UM_prefactor;
+  ymir_vec_t *grad_viscosity_TZ_prefactor;
 
   /* Stencils */
   ymir_dvec_t *upper_mantle_marker;
@@ -256,13 +274,21 @@ typedef struct slabs_inverse_problem_params
   double reg_tik_yield_stress;
 
   /* weighting for priors */
-  double prior_prefactor;
-  double prior_strain_exp;
-  double prior_yield_stress;
+  double prior_weakfactor_scale;
+  double prior_strain_rate_exponent_scale;
+  double prior_yield_stress_scale;
   double prior_viscosity;
-  double prior_upper_mantle_prefactor;
-  double prior_transition_zone_prefactor;
-  double prior_activation_energy;
+  double prior_upper_mantle_prefactor_scale;
+  double prior_transition_zone_prefactor_scale;
+  double prior_activation_energy_scale;
+
+  int prior_weakfactor;
+  int prior_strain_rate_exponent;
+  int prior_yield_stress;
+  int prior_upper_mantle_prefactor;
+  int prior_transition_zone_prefactor;
+  int prior_activation_energy;
+
   ymir_vec_t *weakzone_factor_prior_misfit;
   ymir_vec_t *strain_rate_exponent_prior_misfit;
   ymir_vec_t *activation_energy_prior_misfit;
@@ -370,10 +396,10 @@ void
 slabs_inverse_problem_destroy (slabs_inverse_problem_params_t *inverse_params);
 
 void
-slabs_initialize_gradient_params (slabs_inverse_problem_params_t *inverse_params,
-				  slabs_nl_stokes_problem_t *nl_stokes,
-				  slabs_nl_solver_options_t *solver_options,
-				  slabs_physics_options_t *physics_options);
+slabs_initialize_inverse_params (slabs_inverse_problem_params_t *inverse_params,
+				 slabs_nl_stokes_problem_t *nl_stokes,
+				 slabs_nl_solver_options_t *solver_options,
+				 slabs_physics_options_t *physics_options);
 
 void 
 slabs_gradient_parameters (const slabs_gradient_type_t *grad_param, slabs_inverse_problem_params_t *inverse_params);
@@ -454,5 +480,24 @@ void
 slabs_log_viscosity (slabs_nl_stokes_problem_t *nl_stokes,
 		     const char *vtk_filepath);
 
+
+void
+slabs_setup_mesh_data_weakzone (slabs_inverse_problem_params_t *inverse_params,
+				slabs_stokes_state_t *state,
+				slabs_physics_options_t *physics_options,
+				const char *vtk_filepath);
+
+
+void
+slabs_weakzone_stencils (slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_clear_inverse_problem_empty (slabs_inverse_problem_params_t *inverse_params);
+
+void
+slabs_initialize_weakzone_stencils (slabs_inverse_problem_params_t *inverse_params);
+
+void
+slabs_destroy_weakzone_stencils (slabs_inverse_problem_params_t *inverse_params);
 
 #endif /* SLABS_GRADIENT_H */
