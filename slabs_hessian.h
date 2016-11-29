@@ -93,12 +93,281 @@ typedef struct slabs_hessian_params
   ymir_vec_t *activation_energy_mm_average_viscosity_inc;
   ymir_vec_t *hessian_block_uu_average_viscosity_inc;
   ymir_vec_t *hessian_block_uu_newton_inc;
+  ymir_vec_t *hessian_block_mm_UM_prefactor;
+  ymir_vec_t *hessian_block_mm_strain_rate_exponent;
+  ymir_vec_t *hessian_block_mm_weakfactor;
+  ymir_vec_t *hessian_block_mm_yield_stress;
+  ymir_vec_t *hessian_block_mm_TZ_prefactor;
+  ymir_vec_t *hessian_block_mm_activation_energy;
+
+ 
   double     *hessian;
 
 }
 slabs_hessian_params_t;
 
 
+void
+slabs_hessian_block_uu (slabs_inverse_problem_params_t *inverse_params,
+			slabs_hessian_params_t *hessian_params);
+
+
+void
+slabs_hessian_block_uu_newton (slabs_inverse_problem_params_t *inverse_params,
+			       slabs_hessian_params_t *hessian_params);
+
+
+void
+slabs_hessian_block_mm_strain_exp (slabs_inverse_problem_params_t *inverse_params,
+				   slabs_hessian_params_t *hessian_params);
+
+void
+slabs_hessian_block_mm_upper_mantle (slabs_inverse_problem_params_t *inverse_params,
+				     slabs_hessian_params_t *hessian_params);
+
+
+void
+slabs_hessian_block_mm_transition_zone (slabs_inverse_problem_params_t *inverse_params,
+					slabs_hessian_params_t *hessian_params);
+
+
+void
+slabs_hessian_block_mm_weakfactor (slabs_inverse_problem_params_t *inverse_params,
+				   slabs_hessian_params_t *hessian_params);
+
+void
+slabs_hessian_block_mm_yield_stress (slabs_inverse_problem_params_t *inverse_params,
+				     slabs_hessian_params_t *hessian_params);
+
+void
+slabs_hessian_block_mm_strain_exp_prior (ymir_vec_t *strain_rate_exp_inc,
+					 slabs_inverse_problem_params_t *inverse_params,
+					 slabs_hessian_params_t *hessian_params);
+
+void
+slabs_hessian_block_mm_weakfactor_prior (ymir_vec_t *weakfactor_inc,
+					 slabs_inverse_problem_params_t *inverse_params,
+					 slabs_hessian_params_t *hessian_params);
+void
+slabs_hessian_block_mm_upper_mantle_prior (ymir_vec_t *upper_mantle_inc,
+					   slabs_inverse_problem_params_t *inverse_params,
+					   slabs_hessian_params_t *hessian_params);
+
+void
+slabs_hessian_block_mm_transition_zone_prior (ymir_vec_t *transition_zone_inc,
+					      slabs_inverse_problem_params_t *inverse_params,
+					      slabs_hessian_params_t *hessian_params);
+
+void
+slabs_hessian_block_mm_lower_mantle_prior (ymir_vec_t *lower_mantle_inc,
+					   slabs_inverse_problem_params_t *inverse_params,
+					   slabs_hessian_params_t *hessian_params);
+
+void
+slabs_hessian_block_mm_yield_stress_prior (ymir_vec_t *yield_stress_inc,
+					 slabs_inverse_problem_params_t *inverse_params,
+					   slabs_hessian_params_t *hessian_params);
+
+void 
+slabs_hessian_block_vm_prefactor (ymir_vec_t *vq_out,
+				  slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_vm_yield_stress (ymir_vec_t *vq_out,
+				     slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_vm_yield_upper_mantle_prefactor (ymir_vec_t *vq_out,
+						     slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_vm_yield_transition_zone_prefactor (ymir_vec_t *vq_out,
+							slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_vm_yield_activation_energy (ymir_vec_t *vq_out,
+						slabs_inverse_problem_params_t *inverse_params);
+
+
+void 
+slabs_hessian_block_vm_yield_strain_rate_exponent (ymir_vec_t *vq_out,
+						   slabs_inverse_problem_params_t *inverse_params);
+
+
+void 
+slabs_hessian_block_mv_weakfactor (slabs_hessian_params_t *hessian_params,
+				   slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_mv_strain_rate_exponent (slabs_hessian_params_t *hessian_params,
+					     slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_mv_yield_stress (slabs_hessian_params_t *hessian_params,
+				     slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_mv_upper_mantle_prefactor (slabs_hessian_params_t *hessian_params,
+					       slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_mv_transition_zone_prefactor (slabs_hessian_params_t *hessian_params,
+						  slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_mv_activation_energy (slabs_hessian_params_t *hessian_params,
+					  slabs_inverse_problem_params_t *inverse_params);
+
+void 
+slabs_hessian_block_um_weakfactor (slabs_hessian_params_t *hessian_params,
+				   slabs_inverse_problem_params_t *inverse_params,
+				   const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_um_strain_rate_exponent (slabs_hessian_params_t *hessian_params,
+					     slabs_inverse_problem_params_t *inverse_params,
+					     const char *vtk_filepath);
+
+void 
+slabs_hessian_block_um_yield_stress (slabs_hessian_params_t *hessian_params,
+				     slabs_inverse_problem_params_t *inverse_params,
+				     const char *vtk_filepath);
+
+void 
+slabs_hessian_block_um_activation_energy (slabs_hessian_params_t *hessian_params,
+					  slabs_inverse_problem_params_t *inverse_params,
+					  const char *vtk_filepath);
+void 
+slabs_hessian_block_um_upper_mantle_prefactor (slabs_hessian_params_t *hessian_params,
+					       slabs_inverse_problem_params_t *inverse_params,
+					       const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_um_transition_zone_prefactor (slabs_hessian_params_t *hessian_params,
+					       slabs_inverse_problem_params_t *inverse_params,
+						  const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_mu_weakfactor (slabs_hessian_params_t *hessian_params,
+				   slabs_inverse_problem_params_t *inverse_params,
+				   const char *vtk_filepath);
+
+void 
+slabs_hessian_block_mu_strain_rate_exponent (slabs_hessian_params_t *hessian_params,
+					     slabs_inverse_problem_params_t *inverse_params,
+					     const char *vtk_filepath);
+
+void 
+slabs_hessian_block_mu_upper_mantle_prefactor (slabs_hessian_params_t *hessian_params,
+					       slabs_inverse_problem_params_t *inverse_params,
+					       const char *vtk_filepath);
+void 
+slabs_hessian_block_mu_transition_zone_prefactor (slabs_hessian_params_t *hessian_params,
+					       slabs_inverse_problem_params_t *inverse_params,
+						  const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_uu_viscosity_average (slabs_hessian_params_t *hessian_params,
+					  slabs_inverse_problem_params_t *inverse_params,
+					  const char *vtk_filepath);
+
+void 
+slabs_hessian_block_mm_weakfactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+						     slabs_inverse_problem_params_t *inverse_params,
+						     const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_mm_strain_rate_exponent_viscosity_average (slabs_hessian_params_t *hessian_params,
+							       slabs_inverse_problem_params_t *inverse_params,
+							       const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_mm_upper_mantle_prefactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+								 slabs_inverse_problem_params_t *inverse_params,
+								 const char *vtk_filepath);
+
+void 
+slabs_hessian_block_mm_transition_zone_prefactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+								 slabs_inverse_problem_params_t *inverse_params,
+								    const char *vtk_filepath);
+
+void 
+slabs_hessian_block_mu_weakfactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+						     slabs_inverse_problem_params_t *inverse_params,
+						     const char *vtk_filepath);
+
+void 
+slabs_hessian_block_mu_strain_rate_exponent_viscosity_average (slabs_hessian_params_t *hessian_params,
+							       slabs_inverse_problem_params_t *inverse_params,
+							       const char *vtk_filepath);
+
+void 
+slabs_hessian_block_mu_upper_mantle_prefactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+								 slabs_inverse_problem_params_t *inverse_params,
+								 const char *vtk_filepath);
+
+void 
+slabs_hessian_block_mu_transition_zone_prefactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+								    slabs_inverse_problem_params_t *inverse_params,
+								    const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_mu_activation_energy_viscosity_average (slabs_hessian_params_t *hessian_params,
+							    slabs_inverse_problem_params_t *inverse_params,
+							    const char *vtk_filepath);
+void 
+slabs_hessian_block_mu_yield_stress_viscosity_average (slabs_hessian_params_t *hessian_params,
+						       slabs_inverse_problem_params_t *inverse_params,
+						       const char *vtk_filepath);
+
+void 
+slabs_hessian_block_um_weakfactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+						     slabs_inverse_problem_params_t *inverse_params,
+						     const char *vtk_filepath);
+void 
+slabs_hessian_block_um_strain_rate_exponent_viscosity_average (slabs_hessian_params_t *hessian_params,
+							       slabs_inverse_problem_params_t *inverse_params,
+							       const char *vtk_filepath);
+
+void 
+slabs_hessian_block_um_upper_mantle_prefactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+								 slabs_inverse_problem_params_t *inverse_params,
+								 const char *vtk_filepath);
+
+void 
+slabs_hessian_block_um_transition_zone_prefactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+								    slabs_inverse_problem_params_t *inverse_params,
+								    const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_um_activation_energy_viscosity_average (slabs_hessian_params_t *hessian_params,
+							    slabs_inverse_problem_params_t *inverse_params,
+							    const char *vtk_filepath);
+
+void 
+slabs_hessian_block_um_yield_stress_viscosity_average (slabs_hessian_params_t *hessian_params,
+						       slabs_inverse_problem_params_t *inverse_params,
+						       const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_um_transition_zone_prefactor_viscosity_average (slabs_hessian_params_t *hessian_params,
+								    slabs_inverse_problem_params_t *inverse_params,
+								    const char *vtk_filepath);
+
+
+void 
+slabs_hessian_block_um_activation_energy_viscosity_average (slabs_hessian_params_t *hessian_params,
+							    slabs_inverse_problem_params_t *inverse_params,
+							    const char *vtk_filepath);
 
 
 #endif /* SLABS_HESSIAN_H */

@@ -153,6 +153,7 @@ typedef struct slabs_inverse_problem_params
   ymir_vec_t           *viscosity_temperature;
   ymir_vec_t           *IIe;
   ymir_vec_t           *adjoint_vq;
+  ymir_vec_t           *adjoint_v;
   ymir_vel_dir_t       *vel_dir;
   ymir_dvec_t          *bounds_marker;
   ymir_dvec_t          *no_bounds_marker;
@@ -244,6 +245,14 @@ typedef struct slabs_inverse_problem_params
   ymir_vec_t *grad_viscosity_activation_energy;
   ymir_vec_t *grad_viscosity_UM_prefactor;
   ymir_vec_t *grad_viscosity_TZ_prefactor;
+
+  /* Viscosity second derivative w.r.t IIe and param */
+  ymir_vec_t *grad_viscosity_second_deriv_IIe_weakfactor;
+  ymir_vec_t *grad_viscosity_second_deriv_IIe_strain_rate_exponent;
+  ymir_vec_t *grad_viscosity_second_deriv_IIe_yield_stress;
+  ymir_vec_t *grad_viscosity_second_deriv_IIe_activation_energy;
+  ymir_vec_t *grad_viscosity_second_deriv_IIe_UM_prefactor;
+  ymir_vec_t *grad_viscosity_second_deriv_IIe_TZ_prefactor;
 
   /* Stencils */
   ymir_dvec_t *upper_mantle_marker;
@@ -453,7 +462,6 @@ slabs_compute_stress_axis (double B[3][3]);
 void
 slabs_stress_tensor_output (ymir_vec_t *stress_tensor,
 			    const char *vtk_filepath);
-			    //			    slabs_inverse_problem_params_t *inverse_params);
 
 void
 slabs_solve_optimization (slabs_inverse_problem_params_t *inverse_params);
@@ -499,5 +507,80 @@ slabs_initialize_weakzone_stencils (slabs_inverse_problem_params_t *inverse_para
 
 void
 slabs_destroy_weakzone_stencils (slabs_inverse_problem_params_t *inverse_params);
+
+void
+slabs_second_deriv_viscosity_IIe_param_weakfactor (slabs_inverse_problem_params_t *inverse_params,
+						   const char *vtk_filepath);
+void
+slabs_second_deriv_viscosity_IIe_param_strain_rate_exponent (slabs_inverse_problem_params_t *inverse_params,
+							     const char *vtk_filepath);
+
+void
+slabs_second_deriv_viscosity_IIe_param_yield_stress (slabs_inverse_problem_params_t *inverse_params,
+						     const char *vtk_filepath);
+
+void
+slabs_second_deriv_viscosity_IIe_param_upper_mantle_prefactor (slabs_inverse_problem_params_t *inverse_params,
+							       const char *vtk_filepath);
+
+void
+slabs_second_deriv_viscosity_IIe_param_transition_zone_prefactor (slabs_inverse_problem_params_t *inverse_params,
+								  const char *vtk_filepath);
+
+void
+slabs_gradient_viscosity_param_weakfactor (slabs_inverse_problem_params_t *inverse_params,
+					   const char *vtk_filepath);
+
+
+void
+slabs_gradient_viscosity_param_strain_rate_exponent (slabs_inverse_problem_params_t *inverse_params,
+						     const char *vtk_filepath);
+
+void
+slabs_gradient_viscosity_param_upper_mantle (slabs_inverse_problem_params_t *inverse_params,
+					     const char *vtk_filepath);
+
+void
+slabs_gradient_viscosity_param_transition_zone (slabs_inverse_problem_params_t *inverse_params,
+						const char *vtk_filepath);
+
+void
+slabs_gradient_viscosity_param_yield_stress (slabs_inverse_problem_params_t *inverse_params,
+					     const char *vtk_filepath);
+
+
+void 
+slabs_compute_gradient_strain_rate_exponent_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+							       const char *vtk_filepath);
+
+void 
+slabs_compute_gradient_weakfactor_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+						     const char *vtk_filepath);
+
+void 
+slabs_compute_gradient_yield_stress_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+						       const char *vtk_filepath);
+
+
+void 
+slabs_compute_gradient_yield_stress_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+						       const char *vtk_filepath);
+
+void 
+slabs_compute_gradient_activation_energy_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+							    const char *vtk_filepath);
+
+void 
+slabs_compute_gradient_upper_mantle_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+						       const char *vtk_filepath);
+
+void 
+slabs_compute_gradient_transition_zone_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+							  const char *vtk_filepath);
+
+void 
+slabs_compute_gradient_lower_mantle_average_viscosity (slabs_inverse_problem_params_t *inverse_params,
+						       const char *vtk_filepath);
+
 
 #endif /* SLABS_GRADIENT_H */
